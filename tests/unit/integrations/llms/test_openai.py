@@ -9,7 +9,6 @@ with the OpenAI Python SDK for automatic parameter override.
 
 from __future__ import annotations
 
-import sys
 import warnings
 from contextlib import AbstractContextManager
 from unittest.mock import MagicMock, patch
@@ -357,29 +356,12 @@ class TestStreamingOptimization:
     """Tests for enable_streaming_optimization function."""
 
     @pytest.fixture(autouse=True)
-    def setup_config_modules(self) -> None:
-        """Set up mock config modules for tests with broken imports."""
+    def setup_config_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Capture writes to the real configuration module."""
         from unittest.mock import MagicMock as MM
 
-        from traigent.config.types import TraigentConfig
-
-        # Create mock config module at the path source expects
-        mock_config_module = MM()
-        mock_config_module.context = MM()
-        mock_config_module.context.set_config = MM()
-        mock_config_module.types = MM()
-        mock_config_module.types.TraigentConfig = TraigentConfig
-
-        sys.modules["traigent.integrations.config"] = mock_config_module
-        sys.modules["traigent.integrations.config.context"] = mock_config_module.context
-        sys.modules["traigent.integrations.config.types"] = mock_config_module.types
-
-        yield
-
-        # Clean up sys.modules
-        sys.modules.pop("traigent.integrations.config", None)
-        sys.modules.pop("traigent.integrations.config.context", None)
-        sys.modules.pop("traigent.integrations.config.types", None)
+        self.mock_set_config = MM()
+        monkeypatch.setattr("traigent.config.context.set_config", self.mock_set_config)
 
     @patch("traigent.integrations.llms.openai.enable_openai_optimization")
     def test_enable_streaming_calls_enable_optimization(
@@ -398,9 +380,8 @@ class TestStreamingOptimization:
 
         mock_enable.assert_called_once_with()
 
-        mock_set_config = sys.modules["traigent.integrations.config"].context.set_config
-        mock_set_config.assert_called_once()
-        config = mock_set_config.call_args[0][0]
+        self.mock_set_config.assert_called_once()
+        config = self.mock_set_config.call_args[0][0]
         assert config.custom_params == {"stream": True}
 
 
@@ -408,27 +389,12 @@ class TestToolsOptimization:
     """Tests for enable_tools_optimization function."""
 
     @pytest.fixture(autouse=True)
-    def setup_config_modules(self) -> None:
-        """Set up mock config modules for tests with broken imports."""
+    def setup_config_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Capture writes to the real configuration module."""
         from unittest.mock import MagicMock as MM
 
-        from traigent.config.types import TraigentConfig
-
-        mock_config_module = MM()
-        mock_config_module.context = MM()
-        mock_config_module.context.set_config = MM()
-        mock_config_module.types = MM()
-        mock_config_module.types.TraigentConfig = TraigentConfig
-
-        sys.modules["traigent.integrations.config"] = mock_config_module
-        sys.modules["traigent.integrations.config.context"] = mock_config_module.context
-        sys.modules["traigent.integrations.config.types"] = mock_config_module.types
-
-        yield
-
-        sys.modules.pop("traigent.integrations.config", None)
-        sys.modules.pop("traigent.integrations.config.context", None)
-        sys.modules.pop("traigent.integrations.config.types", None)
+        self.mock_set_config = MM()
+        monkeypatch.setattr("traigent.config.context.set_config", self.mock_set_config)
 
     @patch("traigent.integrations.llms.openai.enable_openai_optimization")
     def test_enable_tools_calls_enable_optimization(
@@ -459,9 +425,8 @@ class TestToolsOptimization:
         enable_tools_optimization(tools)
 
         mock_enable.assert_called_once_with()
-        mock_set_config = sys.modules["traigent.integrations.config"].context.set_config
-        mock_set_config.assert_called_once()
-        config = mock_set_config.call_args[0][0]
+        self.mock_set_config.assert_called_once()
+        config = self.mock_set_config.call_args[0][0]
         assert config.custom_params == {"tools": tools}
 
     @patch("traigent.integrations.llms.openai.enable_openai_optimization")
@@ -472,9 +437,8 @@ class TestToolsOptimization:
         enable_tools_optimization([])
 
         mock_enable.assert_called_once_with()
-        mock_set_config = sys.modules["traigent.integrations.config"].context.set_config
-        mock_set_config.assert_called_once()
-        config = mock_set_config.call_args[0][0]
+        self.mock_set_config.assert_called_once()
+        config = self.mock_set_config.call_args[0][0]
         assert config.custom_params == {}
 
 
